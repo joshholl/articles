@@ -1,17 +1,17 @@
 # Optimizing React Hooks Based Applications
 
 ## A brief overview of hooks
-Announced by Sophie Alpert and Dan Abramov at React Conf 2018, React Hooks are a way to manage bring the capabilities of functional components closer to those of those of Class components. Additionally, the React team pointed out functional components are much easier for them to optimize, whereas class components are more difficult to optimize. Eventually, React Hooks were released in version 16.8
+Announced by Sophie Alpert and Dan Abramov at React Conf 2018, React Hooks are a way to bring the capabilities of functional components closer to those of those of Class components. Additionally, the React team pointed out functional components are much easier for them to optimize, whereas class components are more difficult to optimize. Eventually, React Hooks were released in version 16.8
 
 ## Problems with hooks
 
-Depending on your personal preference for strict adherence to creating pure functions. Pure functions are functions that encapsulate all of their state and has no side effects. For those that strive to build their applications mostly with pure functions, React Hooks can be a shock to the system as they violate the rules of no side effects. That is to say that React hooks explicitly externalize state and inherently are side effects. 
+As the software engineering field matures we are finding that code heavy in side effects tends to also be heavy in defects. While this isn't true for all code bases, but practice has taught us that we need to be cautious with our use of side effects in code. 
 
-This matters because as the software engineering field has matured, we have discovered that code heavy in side effects tends to also have a large number of defects. This isn't true for all code bases, but practice has taught us that we need to be cautious with our use of side effects in code. 
+To combat this issue many have started to follow the pure function concept from functional programming. Pure functions are functions that encapsulate all of their state and has no side effects. However, at some point all applications will have to include some side effects whether its making api calls or saving data to a database. 
 
-So you may ask yourself if side effects are so bad, then why are Hooks a good thing? I asked myself that same question and grew a decent hatred towards them after seeing them misused. But at the end of the day, all modern applications are built around side effects, whether its in the form of api calls or saving user preferences.
+Unfortunately for those that strive to build their applications mostly with pure functions, React Hooks violate the rules of no side effects. That is to say that React hooks explicitly externalize state and inherently are side effects. 
 
-For the remainder of this I will take a look at ways that use are used poorly and cause for defects and un-optimized code.
+So you may ask yourself if side effects are so bad, then why are Hooks a good thing? I asked myself that same question and grew a decent hatred towards them after seeing them misused. It is this misuse of side effects that can make them bad. 
 
 ## Simply using hooks wrong.
 The simplistic api for hooks makes getting up and running trivial. However, there are rules about their usage that need to be followed.Unfortunately because hooks look like standard javascript, its easy to misuse hooks unless you have read the online documentation for their usage.
@@ -240,5 +240,6 @@ So how do we fix this? This is where another hook, `useCallback` comes in handy.
 
 Now, every time out `EventList` re-renders, which will happen every time a new event occurs, our `Item` components will receive the memoized version of the `markEventAcknowledged` function and which will be unchanging and allow our `Item` components to only rerender if their event changes. 
 
+## Conclusion
 
 So now that we have a better understanding of hooks and how to optimize their usage, its important to recall how to get the most out of them. First, use the eslint plugins to help prevent common hooks pitfalls. Secondly, always include a dependency array, allowing your hook to always update on re-render is rarely what you want. Use all of your hooks, including `useCallback` to your advantage. And finally, don't go overboard trying to performance tune your application. If your components are lightweight enough, the cost of letting them just re-render isn't going to be detrimental. Always, optimize when the need to do so comes up, not because you think it will be a problem. 

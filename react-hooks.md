@@ -57,7 +57,7 @@ class EventList {
 
     componentDidMount() {
         let stream = new EventSource(this.streamUrl);
-        stream.onmessage = (event) => events.push(event.data);
+        stream.onmessage = this.appendEvent;
     }
 
     appendEvent(event) {

@@ -16,7 +16,7 @@ So you may ask yourself if side effects are so bad, then why are Hooks a good th
 ## Simply using hooks wrong.
 The simplistic api for hooks makes getting up and running trivial. However, there are rules about their usage that need to be followed.Unfortunately because hooks look like standard javascript, its easy to misuse hooks unless you have read the online documentation for their usage.
 
-There are two main rules to react hooks that you need to follow to ensure proper usage. First, you must never call a hook from inside a regular javascript function, they must always be part of your component. Secondly, never call a hook inside a loop, condition or nested function. Failure to follow these two rules can have negative side effects because React requires that hooks always be used in the same order. 
+There are two main rules to React hooks that you need to follow to ensure proper usage. First, you must never call a hook from inside a regular javascript function, they must always be part of your component. Secondly, never call a hook inside a loop, condition or nested function. Failure to follow these two rules can have negative side effects because React requires that hooks always be used in the same order. 
 
 This means this is bad
 ```javascript
@@ -38,7 +38,7 @@ const MyComponent = (props) => {
 }
 ```
 
-Unfortunately both are valid code javascript, however the former breaks the rules that React has set out for their usage. We can enforce these rules by using the react hooks eslint plugin `eslint-plugin-react-hooks`
+Unfortunately both are valid code javascript, however the former breaks the rules that React has set out for their usage. We can enforce these rules by using the React hooks eslint plugin `eslint-plugin-react-hooks`
 
 ## Not returning a cleanup function from useEffect
 
@@ -94,7 +94,7 @@ const EventList = (streamUrl: string) => {
 
 Thats a heck of a lot shorter, but has a __major__ problem, every time this component re-renders, its going to create a new event source, and start listening. While a few may not be bad, there eventually will be a point where the zombie connection to the event source will prevent other consumers from connecting to the event source. To fix this we need to clean up our event source like we did in the class component. However, we have no `componentWillUnmount` lifecycle function since were in a functional component. So how do we do this? 
 
-Well, its actually quite easy. The `useEffect` function as shown returns nothing, however the react `useEffect` allows you to return a function, that will inturn be used to clean up any resources used when the component is unmounted. 
+Well, its actually quite easy. The `useEffect` function as shown returns nothing, however the React `useEffect` allows you to return a function, that will inturn be used to clean up any resources used when the component is unmounted. 
 
 To make this better we would only have to modify the component to be like this
 ```javascript
@@ -238,8 +238,87 @@ So how do we fix this? This is where another hook, `useCallback` comes in handy.
   }, []);
 ```
 
-Now, every time out `EventList` re-renders, which will happen every time a new event occurs, our `Item` components will receive the memoized version of the `markEventAcknowledged` function and which will be unchanging and allow our `Item` components to only rerender if their event changes. 
+Now, every time out `EventList` re-renders, which will happen every time a new event occurs, our `Item` components will receive the memoized version of the `markEventAcknowledged` function and which will be unchanging and allow our `Item` components to only re-render if their event changes. 
+
+## Hooks and application architecture
+
+For the past few years application state management frameworks like redux have been a dominant way to maintain and mutate your applications state in larger React applications. React hooks have the potential to negate the needs for such frameworks. In fact, one of the builtin hooks `useReducer` is a light weight way to replicate the action/reducer patterns introduced by redux. While hooks definitely can make things easier in this regard, there are some architectural concerns that we need to be aware of when using hooks. 
+
+Primarily, we need to be cognizant of how we are separating concerns. I would argue that most React applications have an implicit separation of concerns using business components and presentation components. In this scenario we have our components that call our api's, are higher order components, or otherwise perform our business logic and pass the results of the business operation on to presentation components. These presentation components may have minimal business logic but are primarily concerned with displaying information to a user. A poor use of hooks is to sprinkle them in everywhere. If you have a large component tree, each with their own `useEffect` hooks in them, after the tree initially renders your useEffect logic will be executed and the tree will potentially re-render again. This cascade of renders and side effects can make your application perform poorly and potentially be riddled with defects. 
+
+Unfortunately, this also doesn't mean that we should shove all of our hooks based logic into a parent component. This would cause the component to become bloated, hard to follow, and once again have a large potential for defects. So if we shouldn't sprinkle hooks everywhere nor should we put them all into large business components what exactly should we do? One strategy is to create new hooks. If you have a large block of hooks at the top of your component, we extract them into a new and independently testable hook. 
+
+For example, we can take all of the logic for maintaining the state, consuming events from the event source, and handling updates out of the `EventList` component and create a new hook that combines all of the logic!
+
+As you can see in the example below, we have extracted all logic from the `EventList` component and created a new `useAcknowledgeableEventStream` hook. And now in our `EventList` component, we call our `useAcknowledgeableEventStream` hook and go about the logic for the component. 
+
+```javascript
+
+const useAcknowledgeableEventStream = () => {
+  const [events, setEvents] = useState([]);
+
+  useEffect(() => {
+    const stream = new EventGenerator(streamUrl);
+    stream.onmessage = event => setEvents(events => [...events, event]);
+    return () => stream.close();
+  }, [])
+
+  const markEventAcknowledged = useCallback((id) => {
+    setEvents(events => {
+      const index = events.findIndex(event => event.lastEventId === id);
+      if (index >= 0) {
+        const event = { ...events[index] };
+        event.data.acknowledged = true;
+        return [
+          ...events.slice(0, index),
+          event,
+          ...events.slice(index + 1)
+        ];
+      }
+      return events;
+    })
+  }, []);
+
+  return [events, markEventAcknowledged];
+}
+
+const Item = React.memo(({ event, markEventAcknowledged }) => {
+  const { acknowledged, message } = event.data;
+  const backgroundColor = acknowledged ? "green" : "red"
+
+  return (
+    <li style={{ backgroundColor, color: "white", margin: "2px" }}>
+      <div>Event {event.lastEventId}</div>
+      <div>Message {message}</div>
+      <div>{
+        !acknowledged &&
+        <button onClick={() => markEventAcknowledged(event.lastEventId)}>
+          Click to acknowledge.
+        </button>
+      }
+      </div>
+    </li>)
+})
+
+const EventList = () => {
+  const [events, markEventAcknowledged] = useAcknowledgeableEventStream();
+  return (
+    <div>
+      <h1>Events</h1>
+      <ul style={{ padding: "2px" }}>
+        {
+          events.map((event, idx) => (<Item key={`event-${idx}`} event={event} markEventAcknowledged={markEventAcknowledged} />))
+        }
+      </ul>
+    </div>
+  );
+}
+
+```
+
+Sadly, extracting our hooks logic out to a custom hook doesn't solve everything. We still will have concerns about component tree and cascading hooks. Unfortunately there is no magic bullet here. To some extent we can rely and following something akin to the MVC (model, view, controller) or MVVM (model, view, view model) patterns to structure our applications. However, at the end of the day it requires careful thought and most importantly consistency. Remember that hooks are inherently side effect-y and side effects hurt us because they surprise us. Using hooks in a consistent manner will help eliminate this surprise and help us on the path to cleaner and less defective code. 
 
 ## Conclusion
 
-So now that we have a better understanding of hooks and how to optimize their usage, its important to recall how to get the most out of them. First, use the eslint plugins to help prevent common hooks pitfalls. Secondly, always include a dependency array, allowing your hook to always update on re-render is rarely what you want. Use all of your hooks, including `useCallback` to your advantage. And finally, don't go overboard trying to performance tune your application. If your components are lightweight enough, the cost of letting them just re-render isn't going to be detrimental. Always, optimize when the need to do so comes up, not because you think it will be a problem. 
+So now that we have a better understanding of hooks and how to optimize their usage, its important to recall how to get the most out of them. First, use the eslint plugins to help prevent common hooks pitfalls. Secondly, always include a dependency array, allowing your hook to always update on re-render is rarely what you want. Use all of your hooks, including `useCallback` to your advantage. Don't go overboard trying to performance tune your application. If your components are lightweight enough, the cost of letting them just re-render isn't going to be detrimental. Always, optimize when the need to do so arises, not because you think it will be a problem. And finally, be cognizant of architectural concerns in React hooks based applications and strive to separate concerns as much as possible.
+

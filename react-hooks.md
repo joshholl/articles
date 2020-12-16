@@ -126,6 +126,10 @@ The `useEffect` and `useCallback` hooks both have an optional argument to accept
 
 If we go back to our stream component from earlier, we can see that the `useEffect` hook that we utilize to connect to the server side event stream doesn't use a dependency array, therefore this will attempt to reconnect to the stream on every re render of this component. To prevent this we can pass an empty dependency array to the useEffect hook to signify that we never want this to be re-evaluated on re-render.
 
+Finally, its important to note that when hooks look at dependencies to see if changes occurred, they are not doing a deep equality. Therefore if you pass a complete object to a hook as a dependency, you're going to only be checking if the reference has changed, not the contents of the object.
+
+
+### Memoization and `useCallback`
 ```javascript
 const MyStreamComponent = (streamUrl) => {
     const [events, setEvents] = useState([]);
@@ -142,6 +146,7 @@ const MyStreamComponent = (streamUrl) => {
         //do the render stuff
     )
 }
+
 ```
 
 Now lets add some details to our return to have some details
